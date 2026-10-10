@@ -12,8 +12,9 @@ operating system.
 
 ### Option A: from the ready-made zip (no tools needed)
 
-1. Get `hush-<version>.zip` (for example `hush-0.2.0.zip`) and unzip it into a
-   folder you'll keep, for example `Documents/hush`.
+1. Download `hush-<version>.zip` from the
+   [latest release](https://github.com/gabi200/hush-pii-guard/releases/latest)
+   and unzip it into a folder you'll keep, for example `Documents/hush`.
    Chrome loads the extension from this folder every time it starts, so
    **don't delete or move it** after installing.
 2. Continue with [Load it into Chrome](#load-it-into-chrome) below, and pick that folder.
