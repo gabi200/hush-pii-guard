@@ -1,0 +1,26 @@
+/* CSS Custom Highlight API styles. Injected via the manifest so page CSPs
+   can't block them, and highlights never touch the editor's DOM. */
+
+/* Toggle on: this will be replaced with a placeholder when you send. */
+::highlight(rampart-protected) {
+  background-color: rgb(34 197 94 / 0.25);
+  text-decoration: underline 2px rgb(22 163 74);
+}
+
+/* Toggle off: this will be sent as typed. */
+::highlight(rampart-exposed) {
+  background-color: rgb(245 158 11 / 0.3);
+  text-decoration: underline wavy rgb(217 119 6);
+}
+
+/* You chose "Don't redact" for this item: it will be sent as typed. */
+::highlight(rampart-skipped) {
+  text-decoration: underline dashed rgb(113 113 122);
+}
+
+/* A placeholder in the conversation shown with its real value. Only this
+   browser sees the value; the AI saw the placeholder (hover for details). */
+::highlight(rampart-revealed) {
+  background-color: rgb(34 197 94 / 0.16);
+  text-decoration: underline dotted 2px rgb(22 163 74);
+}

@@ -1,0 +1,9 @@
+node_modules/
+
+# Build output: recreate with `npm run build` / `npm run package`
+dist/
+hush-*.zip
+
+# Test artifacts
+e2e/mock/editor.bundle.js
+e2e/*.png

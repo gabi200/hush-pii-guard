@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hush settings</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f6f6f7;
+    --surface: #ffffff;
+    --text: #18181b;
+    --muted: #63636b;
+    --line: #e4e4e7;
+    --accent: #16a34a;
+    --accent-ink: #ffffff;
+    --danger: #b91c1c;
+    --danger-soft: #fef2f2;
+    --code: #f1f5f2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0f0f11;
+      --surface: #18181b;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --line: #2e2e33;
+      --accent: #22c55e;
+      --accent-ink: #052e16;
+      --danger: #f87171;
+      --danger-soft: #2a1414;
+      --code: #1f2a22;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 16px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .lede { margin: 0 0 28px; color: var(--muted); }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 4px 20px;
+    margin-bottom: 20px;
+  }
+  h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 28px 0 10px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+  }
+  .row + .row { border-top: 1px solid var(--line); }
+  .row p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .label { font-weight: 600; }
+
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 40px;
+    height: 24px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--line);
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+    transition: transform 0.15s;
+  }
+  .switch:checked { background: var(--accent); }
+  .switch:checked::after { transform: translateX(16px); }
+  :focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+  select, button {
+    font: inherit;
+    color: inherit;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 6px 12px;
+  }
+  button { cursor: pointer; font-weight: 600; }
+  button:hover { background: var(--bg); }
+  button.danger { color: var(--danger); }
+  button.danger.armed { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+  .status { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot[data-tone="ok"] { background: var(--accent); }
+  .dot[data-tone="warn"] { background: #f59e0b; }
+  .dot[data-tone="busy"] { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  .empty { color: var(--muted); padding: 16px 0; margin: 0; }
+  .conv { padding: 12px 0; }
+  .conv + .conv { border-top: 1px solid var(--line); }
+  .conv-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .conv-title { flex: 1 1 220px; min-width: 0; }
+  .conv-title a { color: inherit; font-weight: 600; text-decoration: none; }
+  .conv-title a:hover { text-decoration: underline; }
+  .conv-meta { color: var(--muted); font-size: 13px; }
+  .conv-actions { display: flex; gap: 8px; }
+  .values { margin: 10px 0 2px; width: 100%; border-collapse: collapse; font-size: 13px; }
+  .values th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 8px 4px 0; }
+  .values td { padding: 4px 8px 4px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  .footer-actions { display: flex; justify-content: flex-end; padding: 14px 0; border-top: 1px solid var(--line); }
+  .note { color: var(--muted); font-size: 13px; margin: 14px 0; }
+  .credit { color: var(--muted); font-size: 12px; margin: 28px 0 0; text-align: center; }
+  .credit a { color: inherit; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .switch, .switch::after { transition: none; }
+    .dot[data-tone="busy"] { animation: none; }
+  }
+  @media (max-width: 480px) {
+    .row { align-items: flex-start; }
+    .conv-actions { width: 100%; }
+  }
+</style>
+
+<main>
+  <h1>Hush</h1>
+  <p class="lede">On-device redaction of personal information for ChatGPT and Claude.</p>
+
+  <h2>Protection</h2>
+  <section>
+    <label class="row">
+      <span>
+        <span class="label">Redact before sending</span>
+        <p>Replace detected personal information with placeholders. When off, it is only highlighted.</p>
+      </span>
+      <input type="checkbox" class="switch" id="enabled" />
+    </label>
+    <label class="row">
+      <span>
+        <span class="label">Show real values in conversations</span>
+        <p>Swap placeholders back to the real values on screen. Turn off to see exactly what the AI received.</p>
+      </span>
+      <input type="checkbox" class="switch" id="reveal" />
+    </label>
+  </section>
+
+  <h2>Model</h2>
+  <section>
+    <div class="row">
+      <span>
+        <span class="label">Status</span>
+        <p id="model-detail">Checking…</p>
+      </span>
+      <span class="status"><span class="dot" id="model-dot" data-tone="busy"></span><span id="model-status">Loading</span></span>
+    </div>
+    <label class="row">
+      <span>
+        <span class="label">Backend</span>
+        <p>WebGPU runs on the graphics card and is faster on long messages. Changing this restarts the model.</p>
+      </span>
+      <select id="device">
+        <option value="auto">Automatic</option>
+        <option value="webgpu">WebGPU</option>
+        <option value="wasm">WASM (CPU)</option>
+      </select>
+    </label>
+  </section>
+
+  <h2>Saved conversations</h2>
+  <section>
+    <p class="note">
+      So replies can show real values after a reload, each conversation's placeholders and
+      values are saved on this device, encrypted with a key that never leaves the extension.
+    </p>
+    <div id="conversations"></div>
+    <div class="footer-actions">
+      <button type="button" class="danger" id="delete-all">Delete all saved values</button>
+    </div>
+  </section>
+
+  <p class="credit">
+    Detection by <a href="https://github.com/nationaldesignstudio/rampart" target="_blank" rel="noopener">Rampart</a>
+    from National Design Studio, licensed
+    <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.
+  </p>
+</main>
+<script src="options.js"></script>
+</html>

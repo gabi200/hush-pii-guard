@@ -1,0 +1,22 @@
+{
+  "name": "hush-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end tests for the Hush extension",
+  "scripts": {
+    "build:mock": "esbuild mock/editor.js --bundle --outfile=mock/editor.bundle.js --log-level=warning"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.61.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "prosemirror-commands": "^1.7.2",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.12",
+    "prosemirror-schema-basic": "^1.2.5",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.42.6"
+  },
+  "private": true
+}
