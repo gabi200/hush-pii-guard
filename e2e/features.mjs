@@ -109,7 +109,7 @@ await options.locator(".conv").first().waitFor();
 check("options lists the conversation", /ChatGPT · abc123/.test(await options.locator(".conv").first().textContent()));
 await options.getByRole("button", { name: "Show values" }).click();
 const valuesText = await options.locator(".values").textContent();
-check("options decrypts and shows values", valuesText.includes("[SURNAME_1]") && valuesText.includes("Doe") && valuesText.includes("Given name · you chose not to redact"), valuesText);
+check("options decrypts and shows values", valuesText.includes("[SURNAME_1]") && valuesText.includes("Doe") && valuesText.includes("First name · you chose not to redact"), valuesText);
 await options.locator("#model-status").filter({ hasText: /Ready|Patterns/ }).waitFor({ timeout: 60000 });
 console.log("      model:", await options.locator("#model-status").textContent(), "/", await options.locator("#model-detail").textContent());
 await options.screenshot({ path: join(import.meta.dirname, "options.png"), fullPage: true });
@@ -121,6 +121,22 @@ const afterDelete = Object.keys(await sw.evaluate(() => chrome.storage.local.get
 check("delete all removes saved tables", afterDelete.length === 0, afterDelete.join());
 await page.waitForTimeout(500);
 check("chat stops showing deleted values", (await messages()).at(-1).includes("[SURNAME_1]"), (await messages()).at(-1));
+
+// ---- 4b. Turning a category off --------------------------------------------------------------
+await options.locator('#categories input[value="URL"]').uncheck();
+await page.waitForTimeout(200);
+check("category toggle is saved", JSON.stringify((await sw.evaluate(() => chrome.storage.local.get("disabledLabels"))).disabledLabels) === '["URL"]');
+await page.bringToFront();
+await page.locator('[contenteditable="true"]').click();
+await page.keyboard.type("mail jane.roe@example.com or see https://example.com/jane");
+await page.waitForFunction(() => (CSS.highlights.get("rampart-protected")?.size ?? 0) >= 1, null, { timeout: 30000 });
+await page.waitForTimeout(800);
+check("disabled category isn't highlighted", (await highlight("rampart-protected")).join() === "jane.roe@example.com", (await highlight("rampart-protected")).join());
+await page.keyboard.press("Enter");
+await page.waitForFunction(() => window.__sent.length === 3, null, { timeout: 30000 });
+const sent3 = await page.evaluate(() => window.__sent[2]);
+check("disabled category is sent as typed", sent3 === "mail [EMAIL_1] or see https://example.com/jane", sent3);
+await options.locator('#categories input[value="URL"]').check();
 
 // ---- 5. Backend selection ------------------------------------------------------------------
 await options.selectOption("#device", "webgpu");

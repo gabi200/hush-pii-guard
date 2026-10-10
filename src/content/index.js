@@ -1,5 +1,6 @@
 import { composerHolds, rangeFor, readComposer, writeComposer } from "./editor.js";
 import { createHoverCard, line } from "./hovercard.js";
+import { labelName } from "../labels.js";
 import { createTextareaOverlay } from "./overlay.js";
 import { currentSite, findComposer, findSendButton } from "./sites.js";
 import { PLACEHOLDER_PATTERN, PlaceholderTable } from "./table.js";
@@ -12,37 +13,16 @@ const EDIT_SUBMIT = /^(send|save|submit|update)$/i;
 // How far up from an edit box to look for its submit button.
 const NEAR_DEPTH = 8;
 
-const LABEL_NAMES = {
-  GIVEN_NAME: "First name",
-  SURNAME: "Last name",
-  EMAIL: "Email",
-  PHONE: "Phone number",
-  URL: "URL",
-  SSN: "SSN",
-  CREDIT_CARD: "Card number",
-  IP_ADDRESS: "IP address",
-  TAX_ID: "Tax ID",
-  BANK_ACCOUNT: "Bank account",
-  ROUTING_NUMBER: "Routing number",
-  GOVERNMENT_ID: "Government ID",
-  PASSPORT: "Passport number",
-  DRIVERS_LICENSE: "Driver's license",
-  BUILDING_NUMBER: "Building number",
-  STREET_NAME: "Street",
-  SECONDARY_ADDRESS: "Apartment / unit",
-  CITY: "City",
-  STATE: "State",
-  ZIP_CODE: "ZIP code",
-};
-
 const site = currentSite();
 if (site) main();
 
 async function main() {
-  const settings = await chrome.storage.local.get(["enabled", "reveal", "pillPosition"]);
+  const settings = await chrome.storage.local.get(["enabled", "reveal", "pillPosition", "disabledLabels"]);
 
   let enabled = settings.enabled ?? true;
   let showReal = settings.reveal ?? true;
+  // Categories turned off in settings are neither highlighted nor redacted.
+  let disabledLabels = new Set(settings.disabledLabels ?? []);
   let phase = "loading"; // loading | ready | heuristics | error
   let busy = false;
   let bypass = false; // set while we re-trigger the site's own send
@@ -76,7 +56,7 @@ async function main() {
   async function detect(text) {
     const response = await ask("detect", { text });
     phase = response.phase;
-    return response.spans;
+    return response.spans.filter((span) => !disabledLabels.has(span.label));
   }
 
   // ---- Pill ------------------------------------------------------------------
@@ -98,6 +78,10 @@ async function main() {
       pill.setEnabled(enabled);
       paintEditorHighlights();
       render();
+    }
+    if (changes.disabledLabels) {
+      disabledLabels = new Set(changes.disabledLabels.newValue ?? []);
+      scheduleHighlight(0);
     }
     if (changes.reveal) {
       showReal = changes.reveal.newValue ?? true;
@@ -319,10 +303,8 @@ async function main() {
   // ---- Hover card --------------------------------------------------------------
 
   const card = createHoverCard();
-  const nameOf = (label) => LABEL_NAMES[label] ?? label.toLowerCase().replaceAll("_", " ");
-
   function describeItem(item) {
-    const name = nameOf(item.label);
+    const name = labelName(item.label);
     if (item.skipped) {
       return {
         heading: `${name} · won't be redacted`,

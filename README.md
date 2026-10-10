@@ -130,6 +130,9 @@ If redaction fails for any reason, the message is **not** sent and the pill says
 ## Settings page
 
 - The two switches above, also available here.
+- **Categories:** uncheck a kind of information (URLs, IP addresses, street
+  names, …) to stop detecting it everywhere. Unchecked categories aren't
+  highlighted and are sent as typed.
 - **Model status and backend:** Automatic (WebGPU when the GPU supports it),
   WebGPU, or WASM. WebGPU has to find the name in a test sentence at startup;
   if it errors or gives wrong results, Hush falls back to WASM and says so here.

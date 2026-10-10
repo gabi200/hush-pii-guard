@@ -1,3 +1,5 @@
+import { CATEGORY_GROUPS, labelName } from "./labels.js";
+
 const SITES = {
   chatgpt: { name: "ChatGPT", url: (id) => `https://chatgpt.com/c/${id}` },
   claude: { name: "Claude", url: (id) => `https://claude.ai/chat/${id}` },
@@ -26,6 +28,37 @@ async function loadSettings() {
   $("device").value = device;
 }
 
+// ---- Categories ----------------------------------------------------------------
+
+function renderCategories() {
+  $("categories").replaceChildren(
+    ...CATEGORY_GROUPS.map((group) =>
+      el(
+        "div",
+        { className: "group" },
+        el("p", { className: "group-name", textContent: group.name }),
+        el(
+          "div",
+          { className: "checks" },
+          ...group.labels.map((label) =>
+            el("label", { className: "check" }, el("input", { type: "checkbox", value: label }), labelName(label)),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+async function loadCategories() {
+  const { disabledLabels = [] } = await chrome.storage.local.get("disabledLabels");
+  for (const box of $("categories").querySelectorAll("input")) box.checked = !disabledLabels.includes(box.value);
+}
+
+$("categories").addEventListener("change", () => {
+  const disabledLabels = [...$("categories").querySelectorAll("input:not(:checked)")].map((box) => box.value);
+  chrome.storage.local.set({ disabledLabels });
+});
+
 $("enabled").addEventListener("change", (e) => chrome.storage.local.set({ enabled: e.target.checked }));
 $("reveal").addEventListener("change", (e) => chrome.storage.local.set({ reveal: e.target.checked }));
 $("device").addEventListener("change", async (e) => {
@@ -37,6 +70,7 @@ $("device").addEventListener("change", async (e) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes.enabled || changes.reveal || changes.device) loadSettings();
+  if (changes.disabledLabels) loadCategories();
   if (Object.keys(changes).some((key) => key.startsWith("conv:"))) loadConversations();
 });
 
@@ -150,8 +184,7 @@ function renderValues(table) {
   );
   const skipped = (table?.skipped ?? []).map((key) => {
     const [label, ...rest] = key.split("|");
-    const name = label.charAt(0) + label.slice(1).toLowerCase().replaceAll("_", " ");
-    return el("tr", {}, el("td", { textContent: `${name} · you chose not to redact` }), el("td", { textContent: rest.join("|") }));
+    return el("tr", {}, el("td", { textContent: `${labelName(label)} · you chose not to redact` }), el("td", { textContent: rest.join("|") }));
   });
   if (rows.length + skipped.length === 0) return el("p", { className: "empty", textContent: "No values." });
   return el(
@@ -192,6 +225,8 @@ function confirmable(button, armedLabel, action) {
 
 confirmable($("delete-all"), "Click again to delete everything", () => ask("table:delete", {}));
 
+renderCategories();
 loadSettings();
+loadCategories();
 pollStatus();
 loadConversations();
