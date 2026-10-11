@@ -1,4 +1,4 @@
-# Hush - PII Guard (Chrome extension)
+# Hush - PII Guard (Chrome and Firefox extension)
 
 Redacts personal information on-device before it is sent to ChatGPT or Claude,
 using [`@nationaldesignstudio/rampart`](https://www.npmjs.com/package/@nationaldesignstudio/rampart),
@@ -95,10 +95,30 @@ Other Chromium browsers (Edge, Brave, Opera) have the same developer-mode
 install at `edge://extensions`, `brave://extensions` and so on, but Hush has
 only been tested in Chrome.
 
-### Packaging for the Chrome Web Store
+### Firefox
 
-`npm run package` builds and writes `hush-<version>.zip` (no source maps), which is
-also the zip used in Option A. Bump `version` in `src/manifest.json` before each
+Hush runs in **Firefox 140 or newer**. It isn't signed by Mozilla yet, so it
+loads as a temporary add-on, which Firefox removes when it closes; load it
+again after each restart.
+
+1. Download `hush-firefox-<version>.zip` from the
+   [latest release](https://github.com/gabi200/hush-pii-guard/releases/latest),
+   or build it from source with `npm run build` (it is written to `dist-firefox/`).
+2. Go to `about:debugging#/runtime/this-firefox`.
+3. Click **Load Temporary Add-on…** and pick the zip, or `manifest.json` in
+   `dist-firefox/`.
+4. Refresh any open ChatGPT or Claude tabs.
+
+To keep it installed across restarts, use Firefox Developer Edition, Nightly or
+ESR: set `xpinstall.signatures.required` to `false` in `about:config`, then
+install the zip from `about:addons` (gear menu → **Install Add-on From File…**).
+Settings and saved values are kept only while the add-on stays installed.
+
+### Packaging
+
+`npm run package` builds and writes `hush-<version>.zip` for Chrome and
+`hush-firefox-<version>.zip` for Firefox (no source maps). The Chrome zip is
+the one uploaded to the Chrome Web Store and used in Option A. Bump `version` in `src/manifest.json` before each
 upload; the store rejects a version it has already seen. The listing text and
 privacy policy are in `store/`.
 
@@ -173,8 +193,9 @@ If redaction fails for any reason, the message is **not** sent and the pill says
 | --- | --- |
 | `src/offscreen.js` | Hosts the model (one copy for all tabs), picks WebGPU or WASM, runs detection |
 | `src/extract.js` | Text of PDF (PDF.js) and Word files, run in the offscreen page |
-| `src/background.js` | Starts the model page, relays messages, encrypts saved tables |
+| `src/background.js` | Starts the model page (an offscreen document in Chrome, an iframe in Firefox), relays messages, encrypts saved tables |
 | `src/options.html`, `src/options.js` | Settings page |
+| `build.mjs` | Builds `dist/` (Chrome, Manifest V3) and `dist-firefox/` (Firefox, Manifest V2 with a persistent background page) |
 | `src/content/index.js` | Finds the boxes to protect, highlights, intercepts send, restores values |
 | `src/content/sites.js` | Per-site selectors (update these when a site's UI changes) |
 | `src/content/hovercard.js` | The card shown when hovering a highlight |
@@ -193,7 +214,13 @@ node features.mjs        # every feature, against a mock of logged-in ChatGPT
 GPU=1 node features.mjs  # same, with a (software) WebGPU adapter available
 node mock-chatgpt.mjs    # basic redact-and-restore flow
 node real-chatgpt.mjs    # live, logged-out chatgpt.com; the request is blocked, nothing is sent
+node firefox.mjs         # the Firefox build (dist-firefox/) against the mock
 ```
+
+`firefox.mjs` installs the add-on over Firefox's remote debugging protocol,
+since Playwright can't load extensions into Firefox. Its options-page checks
+currently time out: Playwright's Firefox driver doesn't finish navigating to a
+`moz-extension://` page.
 
 ## Limitations
 

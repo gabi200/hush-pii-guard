@@ -47,10 +47,15 @@ export function readDataUrl(file) {
 
 const isFileInput =(el) => el instanceof HTMLInputElement && el.type === "file";
 
+// Firefox hides DataTransfer items from the page unless the page's own realm
+// added them. A content script there reaches that realm through
+// wrappedJSObject (calls through it run as the page), and cloneInto copies
+// each file over.
 function transfer(files, strings = []) {
-  const data = new DataTransfer();
+  const page = window.wrappedJSObject;
+  const data = page ? new page.DataTransfer() : new DataTransfer();
   for (const [type, value] of strings) data.setData(type, value);
-  for (const file of files) data.items.add(file);
+  for (const file of files) data.items.add(page ? cloneInto(file, window) : file);
   return data;
 }
 

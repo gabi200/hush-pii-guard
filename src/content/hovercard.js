@@ -1,4 +1,4 @@
-import { mountPersistent } from "./mount.js";
+import { adoptStyles, mountPersistent } from "./mount.js";
 
 // A small card shown when hovering a highlight: what the item is, what the AI
 // sees, and an action (skip / redact again). Highlights aren't elements, so
@@ -47,9 +47,7 @@ const GAP = 6;
 export function createHoverCard() {
   const host = document.createElement("rampart-card");
   const root = host.attachShadow({ mode: "open" });
-  const sheet = new CSSStyleSheet();
-  sheet.replaceSync(CSS);
-  root.adoptedStyleSheets = [sheet];
+  adoptStyles(root, CSS);
   const card = document.createElement("div");
   card.className = "card";
   card.hidden = true;

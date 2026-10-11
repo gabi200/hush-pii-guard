@@ -1,4 +1,4 @@
-import { mountPersistent } from "./mount.js";
+import { adoptStyles, mountPersistent } from "./mount.js";
 
 // Asks what to do with attachments that contain personal information (or that
 // couldn't be scanned). A modal <dialog> in a shadow root: it sits in the top
@@ -67,9 +67,7 @@ export function createFileDialog() {
   function build() {
     const host = document.createElement("rampart-files");
     const root = host.attachShadow({ mode: "open" });
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(CSS);
-    root.adoptedStyleSheets = [sheet];
+    adoptStyles(root, CSS);
     dialog = el("dialog");
     dialog.innerHTML = `
       <h2 id="title"></h2>

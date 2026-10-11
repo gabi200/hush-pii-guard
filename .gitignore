@@ -2,6 +2,7 @@ node_modules/
 
 # Build output: recreate with `npm run build` / `npm run package`
 dist/
+dist-firefox/
 hush-*.zip
 
 # Test artifacts

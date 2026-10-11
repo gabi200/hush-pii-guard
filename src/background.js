@@ -7,12 +7,28 @@ const CONV_PREFIX = "conv:";
 
 // ---- Offscreen model page ---------------------------------------------------
 
-let creating = null;
+// Chrome runs the model page as an offscreen document. Firefox has no such
+// API, so its persistent background page (this page) holds it in an iframe;
+// either way the page is reached with runtime messages.
+const offscreenDocument = {
+  exists: async () => (await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] })).length > 0,
+  create: (url) =>
+    chrome.offscreen.createDocument({ url, reasons: ["WORKERS"], justification: "Runs the on-device Rampart PII detection model." }),
+  close: () => chrome.offscreen.closeDocument(),
+};
 
-async function hasOffscreen() {
-  const contexts = await chrome.runtime.getContexts({ contextTypes: ["OFFSCREEN_DOCUMENT"] });
-  return contexts.length > 0;
-}
+const MODEL_FRAME = "model-page";
+const backgroundFrame = {
+  exists: async () => document.getElementById(MODEL_FRAME) !== null,
+  create: async (url) => {
+    const frame = Object.assign(document.createElement("iframe"), { id: MODEL_FRAME, src: url });
+    document.body.append(frame);
+  },
+  close: async () => document.getElementById(MODEL_FRAME)?.remove(),
+};
+
+const modelPage = chrome.offscreen ? offscreenDocument : backgroundFrame;
+let creating = null;
 
 // Offscreen documents only get chrome.runtime, not chrome.storage, so the
 // backend preference travels in the URL. If WebGPU already failed for this
@@ -26,13 +42,9 @@ async function offscreenUrl() {
 }
 
 async function ensureOffscreen() {
-  if (await hasOffscreen()) return;
+  if (await modelPage.exists()) return;
   creating ??= (async () => {
-    await chrome.offscreen.createDocument({
-      url: await offscreenUrl(),
-      reasons: ["WORKERS"],
-      justification: "Runs the on-device Rampart PII detection model.",
-    });
+    await modelPage.create(await offscreenUrl());
   })().finally(() => {
     creating = null;
   });
@@ -41,7 +53,8 @@ async function ensureOffscreen() {
 
 // Errors meaning "no document to answer": not created yet, still starting, or
 // closed mid-request by a backend restart. All are retried on a fresh document.
-const RETRYABLE = /Receiving end does not exist|message port closed|message channel closed/;
+// The last one is Firefox's wording when the frame is removed mid-request.
+const RETRYABLE = /Receiving end does not exist|message port closed|message channel closed|Message manager disconnected/;
 
 async function toOffscreen(message) {
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -61,14 +74,14 @@ async function toOffscreen(message) {
 chrome.storage.onChanged.addListener(async (changes, area) => {
   if (area !== "local" || !changes.device) return;
   await chrome.storage.session.remove("fallback");
-  if (await hasOffscreen()) await chrome.offscreen.closeDocument();
+  if (await modelPage.exists()) await modelPage.close();
 });
 
 // The model page reports that WebGPU failed; restart it on WASM.
 async function fallBackToWasm({ why }) {
   const { device = "auto" } = await chrome.storage.local.get("device");
   await chrome.storage.session.set({ fallback: { from: device, why } });
-  if (await hasOffscreen()) await chrome.offscreen.closeDocument();
+  if (await modelPage.exists()) await modelPage.close();
   return { ok: true };
 }
 
@@ -168,8 +181,9 @@ async function deleteTables({ keys }) {
   return { ok: true };
 }
 
-// The toolbar button opens the settings page.
-chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
+// The toolbar button opens the settings page. Manifest V2 (the Firefox build)
+// calls it browserAction.
+(chrome.action ?? chrome.browserAction).onClicked.addListener(() => chrome.runtime.openOptionsPage());
 
 // ---- Routing -----------------------------------------------------------------
 

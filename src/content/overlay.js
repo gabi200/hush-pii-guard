@@ -1,4 +1,4 @@
-import { mountPersistent } from "./mount.js";
+import { adoptStyles, mountPersistent } from "./mount.js";
 
 // Highlights for a <textarea>, which the CSS Highlight API can't paint into.
 // A mirror box with the textarea's exact text metrics sits on top of it with
@@ -44,9 +44,7 @@ mark[data-tone="skipped"] {
 export function createTextareaOverlay({ onStale }) {
   const host = document.createElement("rampart-overlay");
   const root = host.attachShadow({ mode: "open" });
-  const sheet = new CSSStyleSheet();
-  sheet.replaceSync(CSS);
-  root.adoptedStyleSheets = [sheet];
+  adoptStyles(root, CSS);
   const mirror = document.createElement("div");
   mirror.className = "mirror";
   root.append(mirror);

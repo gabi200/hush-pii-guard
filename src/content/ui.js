@@ -1,8 +1,7 @@
-import { mountPersistent } from "./mount.js";
+import { adoptStyles, mountPersistent } from "./mount.js";
 
 // The on-page toggle: a draggable pill in a shadow root so neither
-// site's CSS leaks in. Styles go through adoptedStyleSheets, which page CSPs
-// don't block the way they can block an injected <style>.
+// site's CSS leaks in.
 
 const CSS = `
 :host { all: initial; }
@@ -94,9 +93,7 @@ const MARGIN = 8;
 export function createPill({ enabled, reveal, position, onToggle, onReveal, onOptions, onMove }) {
   const host = document.createElement("rampart-pill");
   const root = host.attachShadow({ mode: "open" });
-  const sheet = new CSSStyleSheet();
-  sheet.replaceSync(CSS);
-  root.adoptedStyleSheets = [sheet];
+  adoptStyles(root, CSS);
 
   const pill = document.createElement("div");
   pill.className = "pill";
