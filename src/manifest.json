@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hush - PII Guard",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "minimum_chrome_version": "116",
   "description": "Redacts personal information on-device before it is sent to ChatGPT or Claude, and restores it in the replies.",
   "icons": {
