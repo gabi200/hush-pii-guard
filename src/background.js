@@ -176,6 +176,7 @@ chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
 const handlers = {
   status: () => toOffscreen({ type: "status" }),
   detect: ({ text }) => toOffscreen({ type: "detect", text }),
+  extract: ({ kind, data, limit }) => toOffscreen({ type: "extract", kind, data, limit }),
   "offscreen:fallback": fallBackToWasm,
   "table:load": loadTable,
   "table:save": saveTable,

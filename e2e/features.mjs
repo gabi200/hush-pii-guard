@@ -1,15 +1,17 @@
 // End-to-end check of: skip an item, redaction, restored-value marking and the
-// "show placeholders" switch, edit-message boxes, the options page (encrypted
+// "show placeholders" switch, edit-message boxes, attachments, the options page (encrypted
 // storage, view, delete), and backend selection. Runs against mock/.
 import { chromium } from "playwright";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { makePdf } from "./fixtures.mjs";
 
 const EXT = resolve(import.meta.dirname, "../dist");
 const MOCK = join(import.meta.dirname, "mock");
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "rampart-")), {
   headless: true,
+  channel: "chromium", // the headless shell can't load extensions
   executablePath: process.env.CHROME,
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, ...(process.env.GPU ? ["--enable-unsafe-webgpu", "--enable-features=Vulkan"] : [])],
 });
@@ -137,6 +139,87 @@ await page.waitForFunction(() => window.__sent.length === 3, null, { timeout: 30
 const sent3 = await page.evaluate(() => window.__sent[2]);
 check("disabled category is sent as typed", sent3 === "mail [EMAIL_1] or see https://example.com/jane", sent3);
 await options.locator('#categories input[value="URL"]').check();
+
+// ---- 4c. Attachments ------------------------------------------------------------------------
+const files = () => page.evaluate(() => window.__files);
+const fileDialog = page.locator("rampart-files dialog[open]");
+const dialogButton = (name) => page.locator("rampart-files").getByRole("button", { name, exact: true });
+const notes = "Meeting notes\nCall Maria Gonzalez at +40722567222 or write to maria.gonzalez@example.com.\n";
+
+await page.locator("#upload").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from(notes) });
+await fileDialog.waitFor({ timeout: 60000 });
+const dialogText = await fileDialog.textContent();
+check("text file with PII opens the dialog", /notes\.txt.*Email: maria\.gonzalez@example\.com/.test(dialogText), dialogText);
+check("site doesn't see the file while it is held", (await files()).length === 0);
+await dialogButton("Attach redacted copy").click();
+await page.waitForFunction(() => window.__files.length === 1, null, { timeout: 10000 });
+const redactedTxt = (await files())[0];
+check(
+  "redacted text file keeps its name and format",
+  redactedTxt.name === "notes.txt" && redactedTxt.text.startsWith("Meeting notes\n") && /\[EMAIL_\d+\]/.test(redactedTxt.text) && !/maria\.gonzalez|40722567222/.test(redactedTxt.text),
+  JSON.stringify(redactedTxt),
+);
+
+await page.locator("#upload").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from(notes) });
+await fileDialog.waitFor({ timeout: 60000 });
+await page.keyboard.press("Escape");
+await page.waitForTimeout(300);
+check("Escape attaches nothing", (await files()).length === 1 && (await page.locator("#upload").evaluate((i) => i.value)) === "");
+
+await page.locator("#upload").setInputFiles({ name: "recipe.txt", mimeType: "text/plain", buffer: Buffer.from("Two eggs, flour and sugar.\n") });
+await page.waitForFunction(() => window.__files.length === 2, null, { timeout: 60000 });
+check("file without PII is attached without asking", (await files())[1].text === "Two eggs, flour and sugar.\n");
+
+await page.locator("#upload").setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]) });
+await page.waitForFunction(() => window.__files.length === 3, null, { timeout: 5000 });
+check("unsupported file types pass straight through", (await files())[2].name === "photo.png");
+
+// A one-page PDF with a real text layer, dropped on the page.
+const dropFile = (name, type, bytes) =>
+  page.evaluate(
+    ([name, type, bytes]) => {
+      const data = new DataTransfer();
+      data.items.add(new File([new Uint8Array(bytes)], name, { type }));
+      document.getElementById("dropzone").dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
+    },
+    [name, type, [...bytes]],
+  );
+await dropFile("letter.pdf", "application/pdf", makePdf("Dear Maria Gonzalez, your SSN 123-45-6789 is on file."));
+await fileDialog.waitFor({ timeout: 60000 });
+check("PDF text is scanned", /letter\.pdf.*SSN/.test(await fileDialog.textContent()), await fileDialog.textContent());
+await dialogButton("Attach redacted copy").click();
+await page.waitForFunction(() => window.__files.length === 4, null, { timeout: 10000 });
+const redactedPdf = (await files())[3];
+check(
+  "redacted PDF is attached as text, through the drop",
+  redactedPdf.via === "drop" && redactedPdf.name === "letter.txt" && redactedPdf.text.includes("[SSN_") && !redactedPdf.text.includes("123-45-6789"),
+  JSON.stringify(redactedPdf),
+);
+
+// A Word file whose only PII is in the page header.
+const { zipSync, strToU8 } = await import("fflate");
+const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+const docx = zipSync({
+  "word/document.xml": strToU8(`<w:document ${W}><w:body><w:p><w:pPr><w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs></w:pPr><w:r><w:t>Quarterly report</w:t></w:r></w:p></w:body></w:document>`),
+  "word/header1.xml": strToU8(`<w:hdr ${W}><w:p><w:r><w:t>Prepared by maria.gonzalez@example.com</w:t></w:r></w:p></w:hdr>`),
+});
+await page.locator("#upload").setInputFiles({
+  name: "report.docx",
+  mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  buffer: Buffer.from(docx),
+});
+await fileDialog.waitFor({ timeout: 60000 });
+check("Word header is scanned", /report\.docx.*Email/.test(await fileDialog.textContent()), await fileDialog.textContent());
+await dialogButton("Attach original").click();
+await page.waitForFunction(() => window.__files.length === 5, null, { timeout: 10000 });
+check("Attach original sends the file unchanged", (await files())[4].name === "report.docx");
+
+await options.locator("#scan-files").uncheck();
+await page.waitForTimeout(200);
+await page.locator("#upload").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from(notes) });
+await page.waitForFunction(() => window.__files.length === 6, null, { timeout: 5000 });
+check("scanning can be turned off in settings", (await files())[5].text === notes);
+await options.locator("#scan-files").check();
 
 // ---- 5. Backend selection ------------------------------------------------------------------
 await options.selectOption("#device", "webgpu");

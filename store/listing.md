@@ -35,6 +35,7 @@ YOU STAY IN CONTROL
 • "Don't redact": hover an item and keep it as typed, for example a public figure's name.
 • Eye button: switch the page between real values and placeholders to see exactly what the AI saw.
 • Works in the main message box and when editing an earlier message.
+• Attached files are checked too: text files, PDFs and Word documents with personal information can be attached as a redacted copy, as the original, or not at all.
 • If redaction fails for any reason, the message is not sent.
 
 WHAT IT DETECTS
@@ -47,7 +48,7 @@ PRIVATE BY DESIGN
 
 GOOD TO KNOW
 • Works on chatgpt.com and claude.ai.
-• Files, images and voice input are not redacted.
+• Images, spreadsheets and voice input are not checked. A redacted PDF or Word file is attached as plain text.
 • No detector catches everything; Hush reduces what you share but can't guarantee it catches every item.
 • Best for names and text in Latin-script languages (English, Spanish, French, German, Italian, Portuguese, Dutch).
 

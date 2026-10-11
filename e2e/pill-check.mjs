@@ -8,6 +8,7 @@ const EXT = resolve(import.meta.dirname, "../dist");
 const MOCK = join(import.meta.dirname, "mock");
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "rampart-")), {
   headless: true,
+  channel: "chromium", // the headless shell can't load extensions
   executablePath: process.env.CHROME,
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
 });

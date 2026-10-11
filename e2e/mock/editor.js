@@ -78,3 +78,19 @@ form.addEventListener("submit", (e) => {
   e.preventDefault();
   send();
 });
+
+// Attachments, as a site would take them: a file input, and a drop zone that
+// also accepts pasted files. Each file lands in window.__files as
+// { via, name, type, text }.
+window.__files = [];
+const record = (via) => async (files) => {
+  for (const file of files) window.__files.push({ via, name: file.name, type: file.type, text: await file.text() });
+};
+const upload = document.getElementById("upload");
+upload.addEventListener("change", () => record("input")([...upload.files]));
+const zone = document.getElementById("dropzone");
+zone.addEventListener("dragover", (e) => e.preventDefault());
+zone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  record("drop")([...e.dataTransfer.files]);
+});

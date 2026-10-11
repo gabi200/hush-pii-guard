@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 const EXT = resolve(import.meta.dirname, "../dist");
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "rampart-")), {
   headless: true,
+  channel: "chromium", // the headless shell can't load extensions
   executablePath: process.env.CHROME,
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--disable-blink-features=AutomationControlled"],
   userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",

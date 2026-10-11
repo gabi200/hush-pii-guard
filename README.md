@@ -125,11 +125,36 @@ Face; after that it is cached.
   see exactly what the AI received.
 - **Gear button:** opens the settings page.
 
+### Attached files
+
+When the switch is on, files you attach (file picker, drag and drop, or paste)
+are scanned before the site receives them. Hush reads plain-text formats
+(`.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.xml`, `.html`, `.log`, `.yaml`,
+`.eml`, `.vcf`, …), PDFs with a text layer, and Word `.docx` files (including
+headers, footers, footnotes, comments and deleted tracked changes). It also
+checks the file name.
+
+- **Nothing found:** the file is attached as usual.
+- **Personal information found:** a dialog lists what was found, per file.
+  **Attach redacted copy** replaces each item with the same placeholders used for
+  messages, so replies show the real values. A text file keeps its format; a PDF
+  or Word file becomes a plain-text copy (`letter.pdf` → `letter.txt`), since
+  Hush can't edit those formats in place. **Attach original** sends the file
+  unchanged, and **Cancel** (or Escape) attaches nothing.
+- **Couldn't scan** (password-protected or scanned-image PDF, damaged file, over
+  20 MB or about 300,000 characters): the dialog says so, and the file is attached
+  only if you choose **Attach anyway**.
+
+Other files, such as images, spreadsheets and archives, are attached unchecked.
+While a file is being scanned the pill shows progress, and sending is held until
+it finishes.
+
 If redaction fails for any reason, the message is **not** sent and the pill says why.
 
 ## Settings page
 
 - The two switches above, also available here.
+- **Scan attached files:** turn off to attach files without checking them.
 - **Categories:** uncheck a kind of information (URLs, IP addresses, street
   names, …) to stop detecting it everywhere. Unchecked categories aren't
   highlighted and are sent as typed.
@@ -147,6 +172,7 @@ If redaction fails for any reason, the message is **not** sent and the pill says
 | File | Role |
 | --- | --- |
 | `src/offscreen.js` | Hosts the model (one copy for all tabs), picks WebGPU or WASM, runs detection |
+| `src/extract.js` | Text of PDF (PDF.js) and Word files, run in the offscreen page |
 | `src/background.js` | Starts the model page, relays messages, encrypts saved tables |
 | `src/options.html`, `src/options.js` | Settings page |
 | `src/content/index.js` | Finds the boxes to protect, highlights, intercepts send, restores values |
@@ -154,6 +180,8 @@ If redaction fails for any reason, the message is **not** sent and the pill says
 | `src/content/hovercard.js` | The card shown when hovering a highlight |
 | `src/content/overlay.js` | Draws highlights over a `<textarea>` |
 | `src/content/table.js` | Placeholder table: tokens, values, skipped items |
+| `src/content/attachments.js` | Holds attached files (picker, drop, paste) while they are scanned, then replays them |
+| `src/content/filedialog.js` | The dialog shown when an attachment contains personal information |
 
 ## Tests
 
@@ -169,7 +197,11 @@ node real-chatgpt.mjs    # live, logged-out chatgpt.com; the request is blocked,
 
 ## Limitations
 
-- File uploads, images and voice input are not redacted.
+- Images, spreadsheets, slides and voice input are not checked. Scanned PDFs
+  (images of text, no text layer) can't be checked and need **Attach anyway**.
+- A redacted PDF or Word file is sent as plain text, without layout or images.
+- Files are caught only through file inputs on the page, drops and pastes. A site
+  that uploads through an input it never adds to the page bypasses the check.
 - Copy buttons on the sites copy the placeholder text, not the real values.
 - "Don't redact" applies per conversation; in a new chat it starts unskipped.
 - The sites' markup changes often; when the pill stops reacting, the selectors in

@@ -32,3 +32,11 @@ const ort = "node_modules/onnxruntime-web/dist";
 for (const file of ["ort-wasm-simd-threaded.jsep.mjs", "ort-wasm-simd-threaded.jsep.wasm"]) {
   await copyFile(`${ort}/${file}`, `${out}/ort/${file}`);
 }
+
+// PDF.js is imported at runtime by the model page, only once a PDF is attached.
+// The legacy build supports the manifest's minimum Chrome version.
+const pdfjs = "node_modules/pdfjs-dist";
+await mkdir(`${out}/pdfjs`, { recursive: true });
+await copyFile(`${pdfjs}/legacy/build/pdf.min.mjs`, `${out}/pdfjs/pdf.mjs`);
+await copyFile(`${pdfjs}/legacy/build/pdf.worker.min.mjs`, `${out}/pdfjs/pdf.worker.mjs`);
+await cp(`${pdfjs}/cmaps`, `${out}/pdfjs/cmaps`, { recursive: true });

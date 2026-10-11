@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 const EXT = resolve(import.meta.dirname, "../dist");
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "rampart-")), {
   headless: true,
+  channel: "chromium", // the headless shell can't load extensions
   executablePath: process.env.CHROME,
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, ...(process.env.GPU ? ["--enable-unsafe-webgpu", "--enable-features=Vulkan"] : [])],
 });

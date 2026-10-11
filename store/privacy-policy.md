@@ -1,6 +1,6 @@
 # Hush - PII Guard: Privacy Policy
 
-_Effective October 10, 2026_
+_Effective October 11, 2026_
 
 Hush - PII Guard ("Hush") is a browser extension that removes personal
 information from your messages before they are sent to ChatGPT or Claude. It is
@@ -22,6 +22,9 @@ sites it reads:
 
 - **The text you type** in the message box and in "edit message" boxes, to find
   personal information such as names, phone numbers, email addresses and ID numbers.
+- **Files you attach** (text files, PDFs and Word documents), when file
+  scanning is on, to find the same kinds of personal information before the
+  site receives them. Their text is read in memory and is never stored.
 - **The text of the conversation on the page**, to find placeholders (for
   example `[GIVEN_NAME_1]`) and show you the real values in their place.
 
@@ -35,7 +38,7 @@ device:
 
 | Data | Why | How it is stored |
 | --- | --- | --- |
-| Settings (on/off, show real values, model backend, position of the on-page control) | To remember your choices | Plain text |
+| Settings (on/off, show real values, file scanning, model backend, position of the on-page control) | To remember your choices | Plain text |
 | For each conversation: the placeholders used and the real values they stand for, plus any items you chose not to redact | So placeholders in replies can be shown as the real values, including after a reload | Encrypted with AES-GCM, using a key that cannot be exported from the extension |
 | For each conversation: the site, conversation ID, number of saved values and last-updated time | To list your saved conversations on the settings page | Plain text |
 | The detection model files | So the model is downloaded only once | Browser cache |
@@ -65,7 +68,8 @@ information replaced by placeholders. The service still receives, as normal:
 
 - the rest of your message,
 - anything you chose not to redact, or anything sent while Hush is switched off,
-- files, images and voice input, which Hush does not process,
+- attached files you chose to send as originals, and images, spreadsheets,
+  voice input and other files Hush does not check,
 - any personal information Hush failed to detect. No detector catches everything.
 
 Your use of those services is governed by the privacy policies of OpenAI and

@@ -1,6 +1,8 @@
+import { extensionOf, kindOf, readDataUrl, readText, watchAttachments } from "./attachments.js";
 import { composerHolds, rangeFor, readComposer, writeComposer } from "./editor.js";
 import { createHoverCard, line } from "./hovercard.js";
 import { labelName } from "../labels.js";
+import { createFileDialog } from "./filedialog.js";
 import { createTextareaOverlay } from "./overlay.js";
 import { currentSite, findComposer, findSendButton } from "./sites.js";
 import { PLACEHOLDER_PATTERN, PlaceholderTable } from "./table.js";
@@ -17,16 +19,18 @@ const site = currentSite();
 if (site) main();
 
 async function main() {
-  const settings = await chrome.storage.local.get(["enabled", "reveal", "pillPosition", "disabledLabels"]);
+  const settings = await chrome.storage.local.get(["enabled", "reveal", "pillPosition", "disabledLabels", "scanFiles"]);
 
   let enabled = settings.enabled ?? true;
   let showReal = settings.reveal ?? true;
   // Categories turned off in settings are neither highlighted nor redacted.
   let disabledLabels = new Set(settings.disabledLabels ?? []);
+  let scanFiles = settings.scanFiles ?? true;
   let phase = "loading"; // loading | ready | heuristics | error
   let busy = false;
   let bypass = false; // set while we re-trigger the site's own send
   let notice = null;
+  let scanning = null; // pill text while an attachment is being scanned
 
   // ---- Background calls ------------------------------------------------------
 
@@ -83,6 +87,7 @@ async function main() {
       disabledLabels = new Set(changes.disabledLabels.newValue ?? []);
       scheduleHighlight(0);
     }
+    if (changes.scanFiles) scanFiles = changes.scanFiles.newValue ?? true;
     if (changes.reveal) {
       showReal = changes.reveal.newValue ?? true;
       pill.setReveal(showReal);
@@ -103,6 +108,7 @@ async function main() {
     if (notice) ({ text, tone } = notice);
     else if (phase === "error") [text, tone] = ["Error · reload the page", "error"];
     else if (busy) [text, tone] = ["Redacting…", "busy"];
+    else if (scanning) [text, tone] = [scanning, "busy"];
     else if (phase === "loading") [text, tone] = ["Loading model…", "busy"];
     else if (enabled) [text, tone] = [pending ? `${pending} to redact` : "On", "ok"];
     else [text, tone] = [pending ? `Off · ${pending} detected` : "Off", pending ? "warn" : "idle"];
@@ -366,9 +372,11 @@ async function main() {
   // ---- Intercepting send ---------------------------------------------------------
 
   function intercept(event, editor) {
-    if (busy) {
+    if (busy || scanning) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      // Sent now, the message would go without the attachment still being scanned.
+      if (scanning) flash("Wait for the attachment scan to finish", "warn", 3000);
       return;
     }
     const { text } = readComposer(editor.el);
@@ -475,6 +483,146 @@ async function main() {
       bypass = false;
     }
   }
+
+  // ---- Attachments ------------------------------------------------------------------
+
+  const MAX_FILE_BYTES = 20 * 1024 * 1024;
+  const MAX_TEXT = 300_000;
+  // Long documents are detected in pieces, so the pill can show progress and
+  // highlighting the message box isn't stuck behind the whole document.
+  const PIECE = 20_000;
+  const fileDialog = createFileDialog();
+
+  // Pieces end at a line break (or a space) where there is one: names and
+  // numbers practically never span those.
+  async function detectLong(text, onProgress) {
+    const spans = [];
+    for (let start = 0; start < text.length; ) {
+      let end = Math.min(start + PIECE, text.length);
+      if (end < text.length) {
+        const lineBreak = text.lastIndexOf("\n", end);
+        const space = text.lastIndexOf(" ", end);
+        if (lineBreak > start + PIECE / 2) end = lineBreak + 1;
+        else if (space > start) end = space + 1;
+      }
+      for (const span of await detect(text.slice(start, end))) {
+        spans.push({ ...span, start: span.start + start, end: span.end + start });
+      }
+      start = end;
+      onProgress(start / text.length);
+    }
+    return spans;
+  }
+
+  async function inspect(file) {
+    const kind = kindOf(file);
+    const ext = extensionOf(file.name);
+    const stem = ext ? file.name.slice(0, -(ext.length + 1)) : file.name;
+    const result = { file, kind, ext, stem, text: null, items: [], nameItems: [], error: null };
+    try {
+      // Names like "jane_doe_cv.pdf": separators read as spaces, same length so offsets carry over.
+      result.nameItems = classify(stem, await detect(stem.replace(/[_.+-]/g, " "))).filter((item) => !item.skipped);
+      if (!kind) return result;
+      if (file.size > MAX_FILE_BYTES) throw new Error(`it is over ${MAX_FILE_BYTES / 1024 / 1024} MB`);
+      const text =
+        kind === "text"
+          ? await readText(file)
+          : (await ask("extract", { kind, data: await readDataUrl(file), limit: MAX_TEXT })).text;
+      if (!text.trim()) throw new Error(kind === "pdf" ? "it has no text; it may be a scanned image" : "it has no text");
+      if (text.length > MAX_TEXT) throw new Error("it is too long to scan");
+      const spans = await detectLong(text, (done) => {
+        scanning = `Scanning ${file.name} · ${Math.round(done * 100)}%`;
+        render();
+      });
+      result.text = text;
+      result.items = classify(text, spans).filter((item) => !item.skipped);
+    } catch (err) {
+      result.error = err.message;
+    }
+    return result;
+  }
+
+  // Text files keep their format. PDF and Word can't be edited in place, so
+  // their redacted copy is the extracted text.
+  function redactedFile(result) {
+    const { file, kind, ext, text, items } = result;
+    const stem = table.redact(result.stem, result.nameItems);
+    const name = (extension) => (extension ? `${stem}.${extension}` : stem);
+    if (items.length === 0) return new File([file], name(ext), { type: file.type, lastModified: file.lastModified });
+    const body = table.redact(text, items);
+    if (kind === "text") return new File([body], name(ext), { type: file.type || "text/plain", lastModified: file.lastModified });
+    return new File([body], name("txt"), { type: "text/plain" });
+  }
+
+  const found = (result) => result.items.length > 0 || result.nameItems.length > 0;
+
+  function describeFiles(results) {
+    const many = results.length > 1;
+    const anyFound = results.some(found);
+    const rows = results.map((result) => {
+      const row = { name: result.file.name };
+      if (result.error) {
+        const fate = anyFound ? " It is left out if you attach redacted copies." : "";
+        return { ...row, tone: "error", summary: "Couldn't scan", note: line(`Hush couldn't read it: ${result.error}.${fate}`) };
+      }
+      if (!found(result)) return { ...row, tone: "clean", summary: result.kind ? "Nothing found" : "Not scanned" };
+      const values = new Map(); // label -> distinct values
+      for (const item of [...result.nameItems, ...result.items]) {
+        if (!values.has(item.label)) values.set(item.label, new Set());
+        values.get(item.label).add(item.value);
+      }
+      const count = [...values.values()].reduce((sum, set) => sum + set.size, 0);
+      const shown = [...values].map(([label, set]) => {
+        const list = [...set];
+        return [labelName(label), list.length > 4 ? [...list.slice(0, 4), `+${list.length - 4} more`] : list];
+      });
+      const note =
+        result.items.length > 0 && result.kind !== "text"
+          ? line("The redacted copy is plain text: layout and images are left out.")
+          : null;
+      return { ...row, tone: "found", summary: `${count} ${count === 1 ? "item" : "items"}`, found: shown, note };
+    });
+    const what = many ? "these attachments" : "this attachment";
+    return {
+      title: anyFound ? `Personal information in ${what}` : `Couldn't check ${what}`,
+      lede: anyFound
+        ? "Hush can attach a copy with placeholders instead, the same way it redacts messages."
+        : "Hush can't tell whether it contains personal information.",
+      rows,
+      redactLabel: anyFound ? `Attach redacted ${many ? "copies" : "copy"}` : null,
+      originalLabel: anyFound ? `Attach ${many ? "originals" : "original"}` : "Attach anyway",
+    };
+  }
+
+  async function guardFiles(files) {
+    const results = [];
+    try {
+      for (const file of files) {
+        scanning = `Scanning ${file.name}…`;
+        render();
+        results.push(await inspect(file));
+      }
+    } finally {
+      scanning = null;
+      render();
+    }
+    if (!results.some((result) => found(result) || result.error)) return files;
+    const choice = await fileDialog.ask(describeFiles(results));
+    if (choice === "original") return files;
+    if (choice !== "redact") return null;
+    const out = results.filter((result) => !result.error).map((result) => (found(result) ? redactedFile(result) : result.file));
+    await saveTable();
+    return out;
+  }
+
+  watchAttachments({
+    active: () => enabled && scanFiles,
+    handle: guardFiles,
+    onError: (err) => {
+      console.error("Hush:", err);
+      flash(`${err.message} · not attached`, "error", 8000);
+    },
+  });
 
   // ---- Showing real values in the conversation ---------------------------------------
 

@@ -8,7 +8,9 @@ import { join, resolve } from "node:path";
 const EXT = resolve(import.meta.dirname, "../dist");
 const MOCK = join(import.meta.dirname, "mock");
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "rampart-")), {
-  headless: true, executablePath: process.env.CHROME,
+  headless: true,
+  channel: "chromium", // the headless shell can't load extensions
+  executablePath: process.env.CHROME,
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
 });
 await ctx.route("https://chatgpt.com/**", (route) => {

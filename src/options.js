@@ -22,9 +22,15 @@ function el(tag, props = {}, ...children) {
 // ---- Settings ----------------------------------------------------------------
 
 async function loadSettings() {
-  const { enabled = true, reveal = true, device = "auto" } = await chrome.storage.local.get(["enabled", "reveal", "device"]);
+  const { enabled = true, reveal = true, scanFiles = true, device = "auto" } = await chrome.storage.local.get([
+    "enabled",
+    "reveal",
+    "scanFiles",
+    "device",
+  ]);
   $("enabled").checked = enabled;
   $("reveal").checked = reveal;
+  $("scan-files").checked = scanFiles;
   $("device").value = device;
 }
 
@@ -61,6 +67,7 @@ $("categories").addEventListener("change", () => {
 
 $("enabled").addEventListener("change", (e) => chrome.storage.local.set({ enabled: e.target.checked }));
 $("reveal").addEventListener("change", (e) => chrome.storage.local.set({ reveal: e.target.checked }));
+$("scan-files").addEventListener("change", (e) => chrome.storage.local.set({ scanFiles: e.target.checked }));
 $("device").addEventListener("change", async (e) => {
   await chrome.storage.local.set({ device: e.target.value });
   showStatus({ phase: "loading" });
@@ -69,7 +76,7 @@ $("device").addEventListener("change", async (e) => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
-  if (changes.enabled || changes.reveal || changes.device) loadSettings();
+  if (changes.enabled || changes.reveal || changes.scanFiles || changes.device) loadSettings();
   if (changes.disabledLabels) loadCategories();
   if (Object.keys(changes).some((key) => key.startsWith("conv:"))) loadConversations();
 });

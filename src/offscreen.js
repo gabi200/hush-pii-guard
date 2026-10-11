@@ -10,6 +10,7 @@ import {
   premask,
   projectMaskedSpan,
 } from "@nationaldesignstudio/rampart";
+import { extractText } from "./extract.js";
 
 // MV3 forbids remotely hosted code, so ONNX Runtime's wasm is bundled in ort/.
 // Model weights are data and still download from Hugging Face (then cached).
@@ -113,6 +114,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       (spans) => sendResponse({ spans, phase: status.phase }),
       (err) => sendResponse({ error: String(err?.message ?? err) }),
     );
+    return true;
+  }
+  // Not queued behind the model: extraction doesn't touch ONNX Runtime.
+  if (message.type === "extract") {
+    fetch(message.data)
+      .then((response) => response.arrayBuffer())
+      .then((buffer) => extractText(message.kind, new Uint8Array(buffer), message.limit))
+      .then(
+        (text) => sendResponse({ text }),
+        (err) => sendResponse({ error: String(err?.message ?? err) }),
+      );
     return true;
   }
 });
